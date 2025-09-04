@@ -75,10 +75,15 @@ class MicrostructureAnalyzer:
         elif method == "Watershed":
             # Create markers for watershed
             distance = ndimage.distance_transform_edt(preprocessed_image > filters.threshold_otsu(preprocessed_image))
-            coords = feature.peak_local_maxima(distance, min_distance=kwargs.get('min_distance', 20))
-            mask = np.zeros(distance.shape, dtype=bool)
-            mask[tuple(coords)] = True
-            markers, _ = ndimage.label(mask)
+            # Use peak_local_maxima from scipy instead
+            from scipy.ndimage import maximum_filter
+            from scipy.ndimage import label as scipy_label
+            
+            # Find local maxima
+            local_maxima = maximum_filter(distance, size=kwargs.get('min_distance', 20)) == distance
+            local_maxima = local_maxima & (distance > 0.5 * distance.max())
+            
+            markers, _ = scipy_label(local_maxima)
             return segmentation.watershed(-distance, markers, mask=preprocessed_image > filters.threshold_otsu(preprocessed_image))
             
         elif method == "K-means Clustering":
@@ -417,91 +422,6 @@ def main():
                         ax.axis('off')
                         st.pyplot(fig)
             
-            # 3D Visualization section
-            if analyzer.labeled_image is not None:
-                st.header("3D Visualization")
-                
-                col1, col2 = st.columns([1, 3])
-                
-                with col1:
-                    st.subheader("3D Settings")
-                    viz_method = st.selectbox(
-                        "Visualization Method",
-                        ["extrusion", "spherical", "voronoi", "isometric"],
-                        format_func=lambda x: {
-                            "extrusion": "Extruded Grains",
-                            "spherical": "Spherical Grains", 
-                            "voronoi": "Voronoi Structure",
-                            "isometric": "Isometric Cubic"
-                        }[x]
-                    )
-                    
-                    if viz_method in ["extrusion", "voronoi", "isometric"]:
-                        depth = st.slider("Depth/Height", 10, 100, 50, 5)
-                    else:
-                        depth = 50
-                    
-                    if st.button("Generate 3D Visualization"):
-                        with st.spinner("Creating 3D visualization..."):
-                            fig_3d = analyzer.create_3d_visualization(
-                                method=viz_method, 
-                                depth=depth
-                            )
-                            
-                            if fig_3d is not None:
-                                st.session_state['fig_3d'] = fig_3d
-                                st.success("3D visualization generated!")
-                            else:
-                                st.error("Failed to generate 3D visualization")
-                
-                with col2:
-                    if 'fig_3d' in st.session_state:
-                        st.plotly_chart(st.session_state['fig_3d'], use_container_width=True)
-                        
-                        # Add download option for 3D visualization
-                        if st.button("Download 3D Model as HTML"):
-                            html_str = st.session_state['fig_3d'].to_html()
-                            st.download_button(
-                                "Download 3D Visualization",
-                                html_str,
-                                "microstructure_3d.html",
-                                "text/html"
-                            )
-                
-                # Additional 3D analysis
-                st.subheader("3D Microstructure Insights")
-                
-                insights_col1, insights_col2 = st.columns(2)
-                
-                with insights_col1:
-                    st.markdown("""
-                    **Visualization Methods:**
-                    - **Extruded Grains**: Projects 2D grains into 3D space with depth
-                    - **Spherical Grains**: Represents grains as spheres based on equivalent diameter
-                    - **Voronoi Structure**: Shows grain connectivity and spatial relationships
-                    - **Isometric Cubic**: Creates cubic representation for crystalline structures
-                    """)
-                
-                with insights_col2:
-                    if analyzer.properties and 'geometric' in analyzer.properties:
-                        geom = analyzer.properties['geometric']
-                        
-                        # Calculate 3D-related properties
-                        if len(geom['areas']) > 0:
-                            # Estimate 3D volume from 2D area (assuming spherical grains)
-                            equivalent_radii = np.array(geom['equivalent_diameters']) / 2
-                            estimated_volumes = (4/3) * np.pi * equivalent_radii**3
-                            
-                            st.markdown("**Estimated 3D Properties:**")
-                            st.write(f"Mean Estimated Volume: {np.mean(estimated_volumes):.1f} voxels³")
-                            st.write(f"Volume Distribution Std: {np.std(estimated_volumes):.1f}")
-                            
-                            # Volume fraction in 3D
-                            total_estimated_volume = np.sum(estimated_volumes)
-                            image_volume = analyzer.image.shape[0] * analyzer.image.shape[1] * depth
-                            volume_fraction_3d = total_estimated_volume / image_volume
-                            st.write(f"Estimated 3D Volume Fraction: {volume_fraction_3d:.4f}")
-            
             # Properties display
             if analyzer.properties:
                 st.header("Extracted Properties")
@@ -695,7 +615,7 @@ def main():
                 # Export results
                 st.header("Export Results")
                 if st.button("Generate Comprehensive Report"):
-                    report = self._generate_report(analyzer.properties)
+                    report = _generate_report(analyzer.properties)
                     st.download_button(
                         "Download Report",
                         report,

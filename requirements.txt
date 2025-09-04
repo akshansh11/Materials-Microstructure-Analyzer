@@ -1,6 +1,6 @@
 streamlit
 numpy
-opencv-python
+opencv-python-headless
 Pillow
 matplotlib
 seaborn
@@ -9,3 +9,4 @@ scikit-image
 scikit-learn
 pandas
 plotly
+kaleido

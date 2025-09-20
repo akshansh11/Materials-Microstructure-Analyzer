@@ -53,7 +53,7 @@ A comprehensive Streamlit-based application for analyzing microstructure images 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/microstructure-analyzer.git
+git clone https://github.com/akshansh11/microstructure-analyzer.git
 cd microstructure-analyzer
 ```
 
